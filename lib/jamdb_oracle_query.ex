@@ -1,7 +1,7 @@
 defmodule Jamdb.Oracle.Query do
   @moduledoc false
 
-  defstruct [:statement]  
+  defstruct [:statement, :name]  
   
   alias Ecto.Query
   alias Ecto.Query.{BooleanExpr, JoinExpr, QueryExpr}
@@ -20,7 +20,7 @@ defmodule Jamdb.Oracle.Query do
     offset   = offset(query, sources)
     lock     = lock(query.lock)
 
-    IO.iodata_to_binary([select, from, join, where, group_by, having, order_by, offset, limit | lock])
+    [select, from, join, where, group_by, having, order_by, offset, limit | lock]
   end
 
   def update_all(%{from: from} = query, prefix \\ nil) do
@@ -31,7 +31,7 @@ defmodule Jamdb.Oracle.Query do
     fields = update_fields(query, sources)
     where = where(%{query | wheres: query.wheres}, sources)
 
-    IO.iodata_to_binary([prefix, fields, where | returning(query, sources)])
+    [prefix, fields, where | returning(query, sources)]
   end
 
   def delete_all(%{from: from} = query) do
@@ -40,29 +40,18 @@ defmodule Jamdb.Oracle.Query do
 
     where = where(%{query | wheres: query.wheres}, sources)
     
-    IO.iodata_to_binary(["DELETE FROM ", from, ?\s, name, where | returning(query, sources)])
+    ["DELETE FROM ", from, ?\s, name, where | returning(query, sources)]
   end
 
-  def insert(prefix, table, header, rows, _on_conflict, returning) do
-    {fields, values} = cond do
-      header == [] ->
-        {returning, [" VALUES ", ?(, intersperse_map(returning, ?,, fn _ -> "DEFAULT" end), ?)]}
-      length(rows) == 1 ->
-        {header, [" VALUES " | insert_all(rows, 1)]}
-      true ->
-        {header, [?\s, ?(, insert_union(rows, 1), ?)]}
-    end 
+  def insert(prefix, table, header, rows, on_conflict, returning) do
+    values =
+      if header == [] do
+        [" VALUES " | intersperse_map(rows, ?,, fn _ -> "(DEFAULT)" end)]
+      else
+        [?\s, ?(, intersperse_map(header, ?,, &quote_name/1), ") VALUES " | insert_all(rows, 1)]
+      end
 
-    IO.iodata_to_binary(["INSERT INTO ", quote_table(prefix, table), ?\s, ?(, 
-                         intersperse_map(fields, ?,, &quote_name/1), ?), values | returning(returning)])
-  end
-
-  defp insert_union(rows, counter) do
-    intersperse_reduce(rows, "UNION ALL ", counter, fn row, counter ->
-      {row, counter} = insert_each(row, counter)
-      {["SELECT ", row, " FROM DUAL "], counter}
-    end)
-    |> elem(0)
+    ["INSERT INTO ", quote_table(prefix, table), values | returning(returning)]
   end
   
   defp insert_all(rows, counter) do
@@ -91,8 +80,8 @@ defmodule Jamdb.Oracle.Query do
       {[quote_name(field), " = :" | Integer.to_string(acc)], acc + 1}
     end)
 
-    IO.iodata_to_binary(["UPDATE ", quote_table(prefix, table), " SET ",
-                         fields, " WHERE ", filters | returning(returning)])
+    ["UPDATE ", quote_table(prefix, table), " SET ",
+     fields, " WHERE ", filters | returning(returning)]
   end
 
   def delete(prefix, table, filters, returning) do
@@ -100,8 +89,7 @@ defmodule Jamdb.Oracle.Query do
       {[quote_name(field), " = :" | Integer.to_string(acc)], acc + 1}
     end)
 
-    IO.iodata_to_binary(["DELETE FROM ", quote_table(prefix, table), " WHERE ",
-                         filters | returning(returning)])
+    ["DELETE FROM ", quote_table(prefix, table), " WHERE ", filters | returning(returning)]
   end
 
   ## Query generation
@@ -172,10 +160,12 @@ defmodule Jamdb.Oracle.Query do
     end)]
   end
 
-  defp join_qual(:inner), do: "JOIN "
-  defp join_qual(:left),  do: "LEFT JOIN "
-  defp join_qual(:right), do: "RIGHT JOIN "
-  defp join_qual(:full),  do: "FULL JOIN "
+  defp join_qual(:inner), do: "INNER JOIN "
+  defp join_qual(:left),  do: "LEFT OUTER JOIN "
+  defp join_qual(:left_lateral),  do: "LATERAL "
+  defp join_qual(:right), do: "RIGHT OUTER JOIN "
+  defp join_qual(:full),  do: "FULL OUTER JOIN "
+  defp join_qual(:cross), do: "CROSS JOIN "
 
   defp where(%Query{wheres: wheres} = query, sources) do
     boolean(" WHERE ", wheres, sources, query)
@@ -263,8 +253,10 @@ defmodule Jamdb.Oracle.Query do
     error!(query, "specify a schema or specify fields from #{source}")
   end
 
-  defp expr({:in, _, [_left, []]}, _sources, _query), do: "false"
-  
+  defp expr({:in, _, [_left, []]}, _sources, _query) do
+      "false"
+  end
+
   defp expr({:in, _, [left, right]}, sources, query) when is_list(right) do
     args = intersperse_map(right, ?,, &expr(&1, sources, query))
     [expr(left, sources, query), " IN (", args, ?)]
@@ -290,7 +282,11 @@ defmodule Jamdb.Oracle.Query do
   defp expr(%Ecto.SubQuery{query: query}, _sources, _query) do
     all(query)
   end
-  
+
+  defp expr({:fragment, _, [kw]}, _sources, query) when is_list(kw) or tuple_size(kw) == 3 do
+    error!(query, "keyword or interpolated fragments are not supported")
+  end
+
   defp expr({:fragment, _, parts}, sources, query) do
     Enum.map(parts, fn
       {:raw, part}  -> part
@@ -307,11 +303,11 @@ defmodule Jamdb.Oracle.Query do
   end
 
   defp expr({:from_now, _, [count, interval]}, sources, query) do
-    interval(Ecto.DateTime.utc, " + ", count, interval, sources, query)
+    interval(DateTime.utc_now, " + ", count, interval, sources, query)
   end
 
   defp expr({:ago, _, [count, interval]}, sources, query) do
-    interval(Ecto.DateTime.utc, " - ", count, interval, sources, query)
+    interval(DateTime.utc_now, " - ", count, interval, sources, query)
   end
 
   defp expr({fun, _, args}, sources, query) when is_atom(fun) and is_list(args) do
@@ -327,6 +323,10 @@ defmodule Jamdb.Oracle.Query do
   defp expr(%Ecto.Query.Tagged{value: literal}, sources, query) do
     expr(literal, sources, query)
   end
+
+  defp expr(nil, _sources, _query),   do: "NULL"
+  defp expr(true, _sources, _query),  do: "TRUE"
+  defp expr(false, _sources, _query), do: "FALSE"
 
   defp expr(literal, _sources, _query) when is_binary(literal) or is_list(literal) do
      ["'", escape_string(literal), "'"]
@@ -368,7 +368,7 @@ defmodule Jamdb.Oracle.Query do
     [" RETURN ", intersperse_map(returning, ", ", &quote_name/1),
      " INTO ", intersperse_map(returning, ", ", &[?: | quote_name(&1)])]
   end   
-         
+
   defp create_names(%{prefix: prefix, sources: sources}) do
     create_names(prefix, sources, 0, tuple_size(sources)) |> List.to_tuple()
   end
@@ -410,7 +410,7 @@ defmodule Jamdb.Oracle.Query do
     if String.contains?(name, "\"") do
       error!(nil, "bad field name #{inspect name}")
     end
-    [name]
+    [name] # identifiers are not case sensitive
   end
 
   defp quote_table(nil, name),    do: quote_table(name)
@@ -422,7 +422,7 @@ defmodule Jamdb.Oracle.Query do
     if String.contains?(name, "\"") do
       error!(nil, "bad table name #{inspect name}")
     end
-    [name]
+    [name] # identifiers are not case sensitive
   end
 
   defp intersperse_map(list, separator, mapper, acc \\ [])
@@ -463,6 +463,6 @@ end
 
 defimpl String.Chars, for: Jamdb.Oracle.Query do
   def to_string(%Jamdb.Oracle.Query{statement: statement}) do
-    statement
+    IO.iodata_to_binary(statement)
   end
 end
