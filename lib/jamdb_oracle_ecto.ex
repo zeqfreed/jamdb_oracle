@@ -1,9 +1,8 @@
 defmodule Ecto.Adapters.Jamdb.Oracle do
   @moduledoc """
-  Ecto adapter for Oracle.
+  Adapter module for Oracle. `Ecto.Adapters.SQL` callbacks implementation.
 
-  It uses `Jamdb.Oracle` for communicating to the database
-  and a connection pool, such as `poolboy`.
+  It uses `jamdb_oracle` for communicating to the database.
 
   ## Features
 
@@ -37,25 +36,16 @@ defmodule Ecto.Adapters.Jamdb.Oracle do
 
       `{:fetch, "select * from tabl where id>:1"`, `[1]}`
       
-      `{:fetch, cursor, rowformat, lastrow}`
+      `{:fetch, cursor, row_format, last_row}`
 
   ## Options
 
   Adapter options split in different categories described
-  below. All options should be given via the repository
-  configuration. These options are also passed to the module
-  specified in the `:pool` option, so check that module's
-  documentation for more options.
+  below. All options can be given via the repository
+  configuration:
 
-  ### Compile time options
-
-  Those options should be set in the config file and require
-  recompilation in order to make an effect.
-
-    * `:adapter` - The adapter name, in this case, `Ecto.Adapters.Jamdb.Oracle`
-    * `:name`- The name of the Repo supervisor process
-    * `:pool` - The connection pool module, defaults to `DBConnection.Poolboy`
-    * `:pool_timeout` - The default timeout to use on pool calls, defaults to `5000`
+      config :your_app, YourApp.Repo,
+        ...
 
   ### Connection options
 
@@ -68,6 +58,12 @@ defmodule Ecto.Adapters.Jamdb.Oracle do
     * `:socket_options` - Options to be given to the underlying socket
     * `:timeout` - The default timeout to use on queries, defaults to `15000`
     * `:charset` - Name that is used in multibyte encoding
+
+  ### Pool options
+	
+    * `:pool` - The connection pool module, defaults to `DBConnection.Connection`
+    * `:pool_timeout` - The default timeout to use on pool calls, defaults to `5000`
+    * `:idle_timeout` - The ping interval to validate an idle connection, defaults to `1000`	
 
   ### Connection parameters
 
@@ -103,13 +99,13 @@ defmodule Ecto.Adapters.Jamdb.Oracle do
   `:string`, `:binary`    | `CHAR`, `VARCHAR2`, `CLOB`       | "one hundred"
   `:string`, `:binary`    | `NCHAR`, `NVARCHAR2`, `NCLOB`    | "百元", "万円"
   `{:array, :integer}`    | `RAW`, `BLOB`                    | 'E799BE'
-  `:naive_datetime`       | `DATE`, `TIMESTAMP`              | {2016, 8, 1}, {{2016, 8, 1}, {13, 14, 15}}
+  `:naive_datetime`       | `DATE`, `TIMESTAMP`              | [`NaiveDateTime`](https://hexdocs.pm/elixir)
   `:utc_datetime`         | `TIMESTAMP WITH TIME ZONE`       | [`DateTime`](https://hexdocs.pm/elixir)
 
   #### Examples
 
-      iex> Ecto.Adapters.SQL.query(Repo, "select 1+:1, sysdate, rowid from dual where 1=:1 ", [1])
-      {:ok, %{num_rows: 1, rows: [[2, {{2016, 8, 1}, {13, 14, 15}}, "AAAACOAABAAAAWJAAA"]]}}
+      iex> Ecto.Adapters.SQL.query(YourApp.Repo, "select 1+:1, sysdate, rowid from dual where 1=:1 ", [1])
+      {:ok, %{num_rows: 1, rows: [[2, ~N[2016-08-01 13:14:15], "AAAACOAABAAAAWJAAA"]]}}
 
   """
 
@@ -147,34 +143,26 @@ defmodule Ecto.Adapters.Jamdb.Oracle.Connection do
   def child_spec(opts) do
     DBConnection.child_spec(Jamdb.Oracle, opts)
   end
-  
-  def execute(conn, %Jamdb.Oracle.Query{} = query, params, opts) do
-    case DBConnection.prepare_execute(conn, query, params, opts) do
-      {:ok, _, result} -> {:ok, result}
-      {:error, err} -> error!(err)
-    end
-  end
-  def execute(conn, statement, params, opts) do
-    query = %Jamdb.Oracle.Query{statement: statement}
-    case DBConnection.prepare_execute(conn, query, params, opts) do
-      {:ok, _, result} -> {:ok, result}
-      {:error, err} -> error!(err)
-    end
+
+  def execute(conn, query, params, opts) do
+    DBConnection.execute(conn, query!(query, ""), params, opts)
   end
 
-  def prepare_execute(conn, _name, statement, params, opts) do
-    query = %Jamdb.Oracle.Query{statement: statement}
-    case DBConnection.prepare_execute(conn, query, params, opts) do
-      {:ok, _, _} = ok -> ok
-      {:error, err} -> error!(err)
-    end
+  def prepare_execute(conn, name, query, params, opts) do
+    DBConnection.prepare_execute(conn, query!(query, name), params, opts)
   end
-    
-  def stream(conn, statement, params, opts) do
-    query = %Jamdb.Oracle.Query{statement: statement}
-    DBConnection.stream(conn, query, params, opts)
+
+  def stream(conn, query, params, opts) do
+    DBConnection.stream(conn, query!(query, ""), params, opts)
   end
-  
+
+  defp query!(sql, name) when is_binary(sql) or is_list(sql) do
+    %Jamdb.Oracle.Query{statement: IO.iodata_to_binary(sql), name: name}
+  end
+  defp query!(%{} = query, _name) do
+    query
+  end
+
   defdelegate all(query), to: Jamdb.Oracle.Query
   defdelegate update_all(query), to: Jamdb.Oracle.Query
   defdelegate delete_all(query), to: Jamdb.Oracle.Query
