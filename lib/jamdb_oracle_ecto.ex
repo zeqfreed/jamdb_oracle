@@ -115,16 +115,16 @@ defmodule Ecto.Adapters.Jamdb.Oracle do
   @behaviour Ecto.Adapter.Structure
 
   @doc false
-  def storage_up(_opts), do: err
+  def storage_up(_opts), do: err()
   
   @doc false
-  def storage_down(_opts), do: err
+  def storage_down(_opts), do: err()
   
   @doc false
-  def structure_dump(_default, _config), do: err
+  def structure_dump(_default, _config), do: err()
   
   @doc false
-  def structure_load(_default, _config), do: err
+  def structure_load(_default, _config), do: err()
   
   @doc false
   def supports_ddl_transaction? do
