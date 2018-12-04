@@ -73,7 +73,7 @@ defmodule Jamdb.Oracle do
     case :jamdb_oracle.start_link(sock_opts ++ params ++ env) do
       {:ok, pid} -> {:ok, %Jamdb.Oracle{pid: pid, mode: :idle}}
       {:error, [{:proc_result, _, msg}]} -> {:error, error!(msg)}
-	  {:error, err} -> {:error, error!(err)}
+      {:error, err} -> {:error, error!(err)}
     end
   end
 
@@ -86,11 +86,11 @@ defmodule Jamdb.Oracle do
   def handle_execute(query, params, opts, s) do
     %Jamdb.Oracle.Query{statement: statement} = query
     returning = Keyword.get(opts, :returning, []) |> Enum.filter(& is_tuple(&1))
-	case query(s, statement |> to_charlist, Enum.concat(params, returning)) do
+    case query(s, statement |> to_charlist, Enum.concat(params, returning)) do
       {:ok, result} -> {:ok, result, s}
       {:error, [{:proc_result, _, msg}]} -> {:error, error!(msg), s}
-	  {:error, err} -> {:error, error!(err), s}
-	  {:disconnect, err} -> {:disconnect, error!(err), s}
+      {:error, err} -> {:error, error!(err), s}
+      {:disconnect, err} -> {:disconnect, error!(err), s}
     end
   end
 
@@ -104,10 +104,10 @@ defmodule Jamdb.Oracle do
     case Keyword.get(opts, :mode, :transaction) do
       :transaction when mode == :idle ->
         statement = "SAVEPOINT tran"
-	    handle_transaction(statement, opts, %{s | mode: :transaction})
+        handle_transaction(statement, opts, %{s | mode: :transaction})
       :savepoint when mode == :transaction ->
         statement = "SAVEPOINT " ++ Keyword.get(opts, :name, :svpt)
-	    handle_transaction(statement, opts, %{s | mode: :transaction})
+        handle_transaction(statement, opts, %{s | mode: :transaction})
     end
   end
 
@@ -116,10 +116,10 @@ defmodule Jamdb.Oracle do
     case Keyword.get(opts, :mode, :transaction) do
       :transaction when mode == :transaction ->
         statement = "COMMIT"
-	    handle_transaction(statement, opts, %{s | mode: :idle})
+        handle_transaction(statement, opts, %{s | mode: :idle})
       :savepoint when mode == :transaction ->
         statement = "COMMIT"
-	    handle_transaction(statement, opts, %{s | mode: :idle})
+        handle_transaction(statement, opts, %{s | mode: :idle})
     end
   end
 
@@ -128,18 +128,18 @@ defmodule Jamdb.Oracle do
     case Keyword.get(opts, :mode, :transaction) do
       :transaction when mode in [:transaction, :error] ->
         statement = "ROLLBACK TO tran"
-	    handle_transaction(statement, opts, %{s | mode: :idle})
+        handle_transaction(statement, opts, %{s | mode: :idle})
       :savepoint when mode in [:transaction, :error] ->
         statement = "ROLLBACK TO " ++ Keyword.get(opts, :name, :svpt)
-	    handle_transaction(statement, opts, %{s | mode: :transaction})
+        handle_transaction(statement, opts, %{s | mode: :transaction})
     end
   end
 
   defp handle_transaction(statement, _opts, s) do
-	case query(s, statement |> to_charlist) do
+    case query(s, statement |> to_charlist) do
       {:ok, result} -> {:ok, result, s}
-	  {:error, err} -> {:error, error!(err), s}
-	  {:disconnect, err} -> {:disconnect, error!(err), s}
+      {:error, err} -> {:error, error!(err), s}
+      {:disconnect, err} -> {:disconnect, error!(err), s}
     end
   end
 
@@ -151,30 +151,30 @@ defmodule Jamdb.Oracle do
   @doc false
   def handle_first(query, %{params: params}, _opts, %{cursors: nil} = s) do
     %Jamdb.Oracle.Query{statement: statement} = query
-	case query(s, {:fetch, statement |> to_charlist, params}) do
+    case query(s, {:fetch, statement |> to_charlist, params}) do
       {:cont, {_, cursor, row_format, rows}} ->
-	    cursors = %{cursor: cursor, row_format: row_format, last_row: List.last(rows)}
-	    {:ok,  %{num_rows: length(rows), rows: rows}, %{s | cursors: cursors}}
+        cursors = %{cursor: cursor, row_format: row_format, last_row: List.last(rows)}
+        {:ok,  %{num_rows: length(rows), rows: rows}, %{s | cursors: cursors}}
       {:ok, result} -> 
-	    {:deallocate, result, s}
-	  {:error, err} -> {:error, error!(err), s}
-	  {:disconnect, err} -> {:disconnect, error!(err), s}
+        {:deallocate, result, s}
+      {:error, err} -> {:error, error!(err), s}
+      {:disconnect, err} -> {:disconnect, error!(err), s}
     end
   end
 
   @doc false
   def handle_next(_query, _cursor, _opts, %{cursors: cursors} = s) do
     %{cursor: cursor, row_format: row_format, last_row: last_row} = cursors
-	case query(s, {:fetch, cursor, row_format, last_row}) do
+    case query(s, {:fetch, cursor, row_format, last_row}) do
       {:cont, {_, _, _, rows}} ->
-	    rows = tl(rows)
-	    {:ok,  %{num_rows: length(rows), rows: rows}, 
+        rows = tl(rows)
+        {:ok,  %{num_rows: length(rows), rows: rows}, 
         %{s | cursors: %{cursors | last_row: List.last(rows)}}}
       {:ok, %{rows: rows} = result} -> 
-	    rows = tl(rows)
-	    {:deallocate, %{result | num_rows: length(rows), rows: rows}, s}
-	  {:error, err} -> {:error, error!(err), s}
-	  {:disconnect, err} -> {:disconnect, error!(err), s}
+        rows = tl(rows)
+        {:deallocate, %{result | num_rows: length(rows), rows: rows}, s}
+      {:error, err} -> {:error, error!(err), s}
+      {:disconnect, err} -> {:disconnect, error!(err), s}
     end
   end
 
@@ -202,7 +202,7 @@ defmodule Jamdb.Oracle do
   def checkout(s) do
     case query(s, 'SESSION') do
       {:ok, _} -> {:ok, s}
-	  {:error, err} ->  {:disconnect, error!(err), s}
+      {:error, err} ->  {:disconnect, error!(err), s}
     end
   end
 
@@ -210,7 +210,7 @@ defmodule Jamdb.Oracle do
   def ping(%{mode: :idle} = s) do
     case query(s, 'PING') do
       {:ok, _} -> {:ok, s}
-	  {:error, err} -> {:disconnect, error!(err), s}
+      {:error, err} -> {:disconnect, error!(err), s}
     end
   end
   def ping(%{mode: :transaction} = s) do
