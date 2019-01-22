@@ -274,7 +274,7 @@ defmodule Jamdb.Oracle.Query do
   end
 
   defp expr({:in, _, [left, {:^, _, [_, length]}]}, sources, query) do
-    right = Enum.map(Enum.to_list(0..length-1), fn ix -> {:^, [], [ix]} end)
+    right = for ix <- 1..length, do: {:^, [], [ix]}
     expr({:in, [], [left, right]}, sources, query)
   end
 
