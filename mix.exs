@@ -14,10 +14,10 @@ defmodule Jamdb.Oracle.Mixfile do
 
   defp deps do
     [
-      {:jose, "~> 1.8"},
+      {:jose, "~> 1.9"},
       {:ecto, "~> 2.1"},
       {:db_connection, "~> 1.1"},
-      {:ex_doc, "~> 0.18", only: :docs}
+      {:ex_doc, "~> 0.19", only: :docs}
     ]
   end
 
