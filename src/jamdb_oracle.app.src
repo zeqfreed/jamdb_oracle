@@ -1,10 +1,9 @@
 {application, jamdb_oracle, [
     {description, "Erlang driver for Oracle"},
-    {vsn, "0.2.3"},
+    {vsn, "0.2.4"},
     {modules, []},
     {registered, []},
     {applications, [kernel,stdlib]},
-    {included_applications, [jose]},
     {files, [src,include,lib,"mix.exs"]},
     {maintainers, ["Mykhailo Vstavskyi","Sergiy Kostyushkin"]},
     {licenses, ["MIT"]},
