@@ -94,14 +94,14 @@ defmodule Ecto.Adapters.Jamdb.Oracle do
 
   Ecto types              | Oracle types                     | Literal syntax in params
   :---------------------- | :------------------------------- | :-----------------------
-  `:id`, `:integer`       | `NUMBER (*,0)`                   | 1, 2, 3
+  `:id`, `:integer`       | `NUMBER (*,0)`, `INTEGER`        | 1, 2, 3
   `:float`                | `NUMBER`,`FLOAT`,`BINARY_FLOAT`  | 1.0, 2.0, 3.0
   `:decimal`              | `NUMBER`,`FLOAT`,`BINARY_FLOAT`  | [`Decimal`](https://hexdocs.pm/decimal)
   `:string`, `:binary`    | `CHAR`, `VARCHAR2`, `CLOB`       | "one hundred"
   `:string`, `:binary`    | `NCHAR`, `NVARCHAR2`, `NCLOB`    | "百元", "万円"
   `{:array, :integer}`    | `RAW`, `BLOB`                    | 'E799BE'
   `:boolean`              | `CHAR`, `VARCHAR2`, `NUMBER`     | true, false
-  `:map`                  | `VARCHAR2`, `NVARCHAR2`          | %{"one" => 1, "hundred" => "百"}
+  `:map`                  | `CLOB`, `NCLOB`                  | %{"one" => 1, "hundred" => "百"}
   `:naive_datetime`       | `DATE`, `TIMESTAMP`              | [`NaiveDateTime`](https://hexdocs.pm/elixir)
   `:utc_datetime`         | `TIMESTAMP WITH TIME ZONE`       | [`DateTime`](https://hexdocs.pm/elixir)
 
