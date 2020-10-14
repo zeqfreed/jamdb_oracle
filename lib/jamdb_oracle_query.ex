@@ -159,13 +159,14 @@ defmodule Jamdb.Oracle.Query do
   defp distinct(%QueryExpr{expr: false}, _, _), do: []
   defp distinct(%QueryExpr{expr: exprs}, _, _) when is_list(exprs), do: "DISTINCT "
 
-  defp from(%{from: %{hints: [_ | _]}} = query, _sources) do
-    error!(query, "table hints are not supported")
-  end
+  defp format_hints(hints) when is_list(hints), 
+    do: hints |> Enum.map(fn hint -> "/*+ #{hint} */" end) |> Enum.join(" ")
+  defp format_hints(hints), do: format_hints([hints])
 
-  defp from(%{from: %{source: source}} = query, sources) do
+  defp from(%{from: %{source: source, hints: hints}} = query, sources) do
     {from, name} = get_source(query, sources, 0, source)
-    [" FROM ", from, ?\s | name]
+    hints = format_hints(hints)
+    ["#{hints} FROM ", from, ?\s | name]
   end
 
   defp update_fields(%{updates: updates} = query, sources) do
