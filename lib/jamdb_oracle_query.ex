@@ -139,8 +139,14 @@ defmodule Jamdb.Oracle.Query do
   defp handle_call(fun, _arity), do: {:fun, Atom.to_string(fun)}
 
   defp select(%{select: %{fields: fields}, distinct: distinct} = query, sources) do
-    ["SELECT ", distinct(distinct, sources, query) | select_fields(fields, sources, query)]
+    hints = format_hints(query)
+    ["SELECT #{hints} ", distinct(distinct, sources, query) | select_fields(fields, sources, query)]
   end
+
+  defp format_hints(%{from: %{hints: hints}}) when is_list(hints),
+    do: hints |> Enum.map(fn hint -> "/*+ #{hint} */" end) |> Enum.join(" ")
+  defp format_hints(%{from: %{hints: hint}}), do:  format_hints(%{from: %{hints: [hint]}})
+  defp format_hints(query), do: ""
 
   defp select_fields([], _sources, _query),
     do: "NULL"
@@ -159,14 +165,9 @@ defmodule Jamdb.Oracle.Query do
   defp distinct(%QueryExpr{expr: false}, _, _), do: []
   defp distinct(%QueryExpr{expr: exprs}, _, _) when is_list(exprs), do: "DISTINCT "
 
-  defp format_hints(hints) when is_list(hints), 
-    do: hints |> Enum.map(fn hint -> "/*+ #{hint} */" end) |> Enum.join(" ")
-  defp format_hints(hints), do: format_hints([hints])
-
   defp from(%{from: %{source: source, hints: hints}} = query, sources) do
     {from, name} = get_source(query, sources, 0, source)
-    hints = format_hints(hints)
-    ["#{hints} FROM ", from, ?\s | name]
+    [" FROM ", from, ?\s | name]
   end
 
   defp update_fields(%{updates: updates} = query, sources) do
