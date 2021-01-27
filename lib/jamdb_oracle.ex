@@ -9,7 +9,7 @@ defmodule Jamdb.Oracle do
 
   use DBConnection
 
-  defstruct [:pid, :mode, :cursors]  
+  defstruct [:pid, :mode, :cursors]
 
   @doc """
   Starts and links to a database connection process.
@@ -17,10 +17,10 @@ defmodule Jamdb.Oracle do
   See [`Ecto.Adapters.Jamdb.Oracle`](Ecto.Adapters.Jamdb.Oracle.html#module-connection-options).
 
   By default the `DBConnection` starts a pool with a single connection.
-  The size of the pool can be increased with `:pool_size`. The ping interval 
+  The size of the pool can be increased with `:pool_size`. The ping interval
   to validate an idle connection can be given with the `:idle_interval` option.
   """
-  @spec start_link(opts :: Keyword.t) :: 
+  @spec start_link(opts :: Keyword.t) ::
     {:ok, pid()} | {:error, any()}
   def start_link(opts) do
     DBConnection.start_link(Jamdb.Oracle, opts)
@@ -35,7 +35,7 @@ defmodule Jamdb.Oracle do
   a map with at least two keys:
 
     * `:num_rows` - the number of rows affected
-    * `:rows` - the result set as a list  
+    * `:rows` - the result set as a list
   """
   @spec query(conn :: any(), sql :: any(), params :: any()) ::
     {:ok, any()} | {:error | :disconnect, any()}
@@ -50,7 +50,9 @@ defmodule Jamdb.Oracle do
       {:ok, [{:proc_result, _, msg}]} -> {:error, msg}
       {:ok, [{:affected_rows, num_rows}]} -> {:ok, %{num_rows: num_rows, rows: nil}}
       {:ok, result} -> {:ok, result}
-      {:error, :local, _} -> {:error, "Data is incomplete. Pass :read_timeout as connection parameter."}
+      {:error, :local, stacktrace} ->
+        IO.inspect(stacktrace)
+        {:error, "Data is incomplete. Pass :read_timeout as connection parameter."}
       {:error, _, err} -> {:disconnect, err}
     end
   end
@@ -59,7 +61,7 @@ defmodule Jamdb.Oracle do
   defp stmt({:fetch, cursor, row_format, last_row}, _), do: {:fetch, cursor, row_format, last_row}
   defp stmt({:batch, sql, params}, _), do: {:batch, sql, params}
   defp stmt(sql, params), do: {sql, params}
-  
+
   @impl true
   def connect(opts) do
     database = Keyword.fetch!(opts, :database) |> to_charlist
@@ -82,7 +84,7 @@ defmodule Jamdb.Oracle do
 
   @impl true
   def disconnect(_err, %{pid: pid}) do
-    :jamdb_oracle.stop(pid) 
+    :jamdb_oracle.stop(pid)
   end
 
   @impl true
@@ -170,7 +172,7 @@ defmodule Jamdb.Oracle do
       {:cont, {_, cursor, row_format, rows}} ->
         cursors = %{cursor: cursor, row_format: row_format, last_row: List.last(rows)}
         {:cont,  %{num_rows: length(rows), rows: rows}, %{s | cursors: cursors}}
-      {:ok, result} -> 
+      {:ok, result} ->
         {:halt, result, s}
       {:error, err} -> {:error, error!(err), s}
       {:disconnect, err} -> {:disconnect, error!(err), s}
@@ -181,9 +183,9 @@ defmodule Jamdb.Oracle do
     case query(s, {:fetch, cursor, row_format, last_row}) do
       {:cont, {_, _, _, rows}} ->
         rows = tl(rows)
-        {:cont,  %{num_rows: length(rows), rows: rows}, 
+        {:cont,  %{num_rows: length(rows), rows: rows},
         %{s | cursors: %{cursors | last_row: List.last(rows)}}}
-      {:ok, %{rows: rows} = result} -> 
+      {:ok, %{rows: rows} = result} ->
         rows = tl(rows)
         {:halt, %{result | num_rows: length(rows), rows: rows}, s}
       {:error, err} -> {:error, error!(err), s}
@@ -257,7 +259,7 @@ defimpl DBConnection.Query, for: Jamdb.Oracle.Query do
   def describe(query, _), do: query
 
   def decode(_, %{rows: []} = result, _), do: result
-  def decode(_, %{rows: rows} = result, opts) when rows != nil, 
+  def decode(_, %{rows: rows} = result, opts) when rows != nil,
     do: %{result | rows: Enum.map(rows, fn row -> decode(row, opts[:decode_mapper]) end)}
   def decode(_, result, _), do: result
 
@@ -298,7 +300,7 @@ defimpl DBConnection.Query, for: Jamdb.Oracle.Query do
   defp encode(elem), do: elem
 
   defp expr(list) when is_list(list) do
-    Enum.map(list, fn 
+    Enum.map(list, fn
       :null -> nil
       elem  -> elem
     end)
